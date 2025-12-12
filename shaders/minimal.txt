@@ -1,0 +1,18 @@
+#version 300 es
+precision highp int;
+precision highp float;
+uniform float opacity;
+in vec4 vClr;
+in vec3 vN, vL, vV;
+out vec4 color;
+void main() {
+ vec3 r = vec3(0.0, 0.0, 1.0); //rayDir: for orthographic projections moving in Z direction (no need for normal matrix)
+ float ambient = 0.35;
+ float diffuse = 0.5;
+ vec3 n = normalize(vN);
+ vec3 l = normalize(vec3(0.0, 10.0, -5.0));
+ float lightNormDot = dot(n, l);
+ vec3 a = vClr.rgb * ambient;
+ vec3 d = max(lightNormDot, 0.0) * vClr.rgb * diffuse;
+ color = vec4(a + d, opacity);
+}
