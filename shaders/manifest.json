@@ -1,11 +1,11 @@
 [
+  "diffuse",
   "grid",
   "harmonicEucalyptusGrove",
   "harmonicOldTown",
-  "minimal",
-  "orenNayer",
-  "subSurfaceScatter",
   "heidrichSeidel",
   "hemispheric",
-  "diffuse",
+  "minimal",
+  "orenNayer",
+  "subSurfaceScatter"
 ]
