@@ -5,5 +5,7 @@
   "minimal",
   "orenNayer",
   "subSurfaceScatter",
-  "heidrichSeidel"
+  "heidrichSeidel",
+  "hemispheric",
+  "diffuse",
 ]
