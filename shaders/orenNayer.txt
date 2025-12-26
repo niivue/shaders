@@ -55,7 +55,7 @@ vec3 desaturate(vec3 color, float amount) {
 }
 
 void main() {
-	float Ambient = 0.5;
+	float Ambient = 0.2;
 	float Diffuse = 1.0;
 	float Specular = 1.0;
 	float Roughness = 0.5;
@@ -64,7 +64,7 @@ void main() {
   vec3 a = vClr.rgb;
   vec3 d = a * Diffuse;
   a *= Ambient;
-  vec3 l = normalize(vec3(0.0, 0.7, 0.7));
+  vec3 l = normalize(vec3(0.0, 0.7, -0.5));
   vec3 n = normalize(vN);
   vec3 v = vec3(0.0, 0.0, 1.0);
   vec3 backcolor = desaturate(0.75 * a + 0.75 * d * abs(dot(l,n)), 0.5);

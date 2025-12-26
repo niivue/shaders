@@ -1,0 +1,121 @@
+#version 300 es
+precision highp float;
+precision highp int;
+
+in vec4 vClr;
+in vec3 vN;
+out vec4 color;
+
+// -----------------------------
+// Compile-time material / lighting constants
+// -----------------------------
+const float AMBIENT       = 0.4;     // ambient multiplier (backface uses 0.75 of this)
+const float DIFFUSE       = 0.7;     // diffuse multiplier
+const float SPECULAR      = 0.6;     // specular multiplier
+const float ROUGHNESS     = 0.1;     // 0.001..1.0 (lower -> sharper)
+const float ANISO_ROUGH   = 0.001;   // anisotropic roughness (very small -> strong anisotropy)
+
+// Heidrich–Seidel anisotropic spec direction (object-space)
+// Change to vec3(1,0,0) to stretch highlight along X, etc.
+const vec3 SPEC_DIRECTION = vec3(0.0, 0.0, 1.0);
+
+// Light & view directions (object-space).
+const vec3 LIGHT_DIR = normalize(vec3(0.0, 20.0, -30.0)); // original shader used this direction-ish
+const vec3 VIEW_DIR  = vec3(0.0, 0.0, -1.0);
+
+// small stable constants
+const float EPSILON = 1e-6;
+const float PI = 3.1415926535897932384626433832795;
+
+// -----------------------------
+// Helpers
+// -----------------------------
+vec3 desaturate(vec3 color, float amount) {
+    vec3 gray = vec3(dot(vec3(0.2126, 0.7152, 0.0722), color));
+    return mix(color, gray, amount);
+}
+
+float safePow(float base, float exp) {
+    // avoid pow of negative / NaN by clamping base to >=0
+    return pow(max(base, 0.0), exp);
+}
+
+// -----------------------------
+// Main
+// -----------------------------
+void main() {
+    // normalize input normal
+    vec3 n = normalize(vN);
+
+    // constant view and light (object-space)
+    vec3 v = normalize(VIEW_DIR);
+    vec3 l = normalize(LIGHT_DIR);
+
+    // half-vector for simple spec-power
+    vec3 h = normalize(l + v);
+
+    // base colors
+    vec3 AmbientColor = vClr.rgb;
+    vec3 DiffuseColor = vClr.rgb;
+    vec3 SpecularColor = vec3(1.0);
+
+    // signed dot for backface handling, but clamp for front-face diffuse
+    float rawDiffuse = dot(l, n);
+    float diffuse = max(rawDiffuse, 0.0);
+
+    // Backface handling: desaturated, softened lighting (keeps original logic)
+    if (n.z < 0.0) {
+        vec3 backsurface = desaturate(
+            AmbientColor * AMBIENT * 0.75 +
+            DiffuseColor * abs(rawDiffuse) * DIFFUSE * 0.75,
+            0.5
+        );
+        // preserve incoming alpha
+        color = vec4(backsurface, vClr.a);
+        return;
+    }
+
+    // Specular power (original exponent was 1/(Roughness^2))
+    float specPower = 1.0 / max(ROUGHNESS * ROUGHNESS, EPSILON);
+    float baseSpec = safePow(max(0.0, dot(n, h)), specPower);
+
+    // Build tangent t from normal and SpecDirection (stable formulation)
+    vec3 sd = normalize(SPEC_DIRECTION);
+    // If n parallel to sd, cross will be near zero; handle by picking an orthogonal fallback
+    vec3 t = cross(n, sd);
+    float tlen = length(t);
+    if (tlen < 1e-4) {
+        // pick arbitrary tangent perpendicular to n
+        t = normalize(abs(n.z) < 0.999 ? cross(n, vec3(0.0, 0.0, 1.0))
+                                       : cross(n, vec3(1.0, 0.0, 0.0)));
+    } else {
+        t = t / tlen;
+    }
+
+    // Heidrich–Seidel anisotropic distribution computation
+    float ldott = dot(l, t);
+    float vdott = dot(v, t);
+
+    // compute the cosine-like term sin(ldott)*sin(vdott) + cos(ldott)*cos(vdott)
+    // This is essentially cos(ldott - vdott) but we keep it in original form.
+    float cosLike = sin(ldott) * sin(vdott) + cos(ldott) * cos(vdott);
+
+    // clamp to [0,1] to avoid negative base for pow (original formula expects positive)
+    cosLike = clamp(cosLike, 0.0, 1.0);
+
+    // exponent for anisotropy (guard denominator)
+    float anisoExpDen = max(ANISO_ROUGH * ANISO_ROUGH, EPSILON);
+    float aniso = pow(cosLike, 1.0 / anisoExpDen);
+
+    // final aniso factor uses sqrt in original
+    aniso = sqrt(max(aniso, 0.0));
+
+    // Compose final color: ambient + diffuse + anisotropic * specular
+    vec3 outColor = AmbientColor * AMBIENT
+                  + DiffuseColor * diffuse * DIFFUSE
+                  + aniso * SpecularColor * baseSpec * SPECULAR;
+
+    // clamp and output, keep vertex alpha
+    outColor = clamp(outColor, 0.0, 1.0);
+    color = vec4(outColor, vClr.a);
+}
